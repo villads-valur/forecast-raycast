@@ -12,7 +12,7 @@
       "name": "start-time-tracker",
       "title": "Start Time Tracker",
       "description": "Start a time tracker for a task in Forecast",
-      "mode": "no-view"
+      "mode": "view"
     },
     {
       "name": "stop-time-tracker",
@@ -25,12 +25,24 @@
       "title": "View Tasks",
       "description": "View tasks in Forecast",
       "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "forecastApiKey",
+      "type": "password",
+      "title": "Forecast API key",
+      "required": true,
+      "description": "Create a personal API key in your Forecast admin panel",
+      "placeholder": "Enter your personal Forecast API key"
     },
     {
-      "name": "view-task",
-      "title": "View Task",
-      "description": "View a specific task in Forecast",
-      "mode": "view"
+      "name": "forecastUserEmail",
+      "type": "textfield",
+      "title": "Forecast User Email Address",
+      "required": true,
+      "description": "Enter the email used in your Forecast user to use the extension",
+      "placeholder": "Enter your email used in Forecast"
     }
   ],
   "dependencies": {
