@@ -1,18 +1,36 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "forecast-raycast",
+  "name": "forecast",
   "title": "forecast-raycast",
-  "description": "",
+  "description": "A Raycast extension to handle all things Forecast.",
   "icon": "extension-icon.png",
   "author": "Vanluren",
   "owner": "kvalifik",
   "license": "MIT",
   "commands": [
     {
-      "name": "start-tracking",
-      "title": "Start Tracking",
-      "description": "",
+      "name": "start-time-tracker",
+      "title": "Start Time Tracker",
+      "description": "Start a time tracker for a task in Forecast",
       "mode": "no-view"
+    },
+    {
+      "name": "stop-time-tracker",
+      "title": "Stop Time Tracker",
+      "description": "Stop the currently running time tracker in Forecast",
+      "mode": "no-view"
+    },
+    {
+      "name": "view-tasks",
+      "title": "View Tasks",
+      "description": "View tasks in Forecast",
+      "mode": "view"
+    },
+    {
+      "name": "view-task",
+      "title": "View Task",
+      "description": "View a specific task in Forecast",
+      "mode": "view"
     }
   ],
   "dependencies": {
