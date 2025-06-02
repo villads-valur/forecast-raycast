@@ -2,20 +2,48 @@ import { useUser } from "@/hooks/useUser";
 import { Action, ActionPanel, Detail, List, showToast, Toast, useNavigation } from "@raycast/api";
 import { useMemo } from "react";
 import { useTasks } from "@/hooks/useTasks";
+import { useTimer } from "@/hooks/useTimer";
 
 export default function Command() {
   const { pop } = useNavigation();
+  const { startTimer, taskId, isRunning, stopTimer } = useTimer();
   const { isLoading: isLoadingUser } = useUser();
   const { isLoading: isLoadingTasks, tasks } = useTasks();
   const isLoading = useMemo(() => isLoadingUser || isLoadingTasks, [isLoadingTasks, isLoadingUser]);
 
   const onTaskSelected = (taskId: number) => {
-    showToast({
-      style: Toast.Style.Success,
-      title: "Task Selected",
-      message: `You selected task with ID: ${taskId}`,
-    });
-    pop();
+    try {
+      if (isRunning && taskId === taskId) {
+        stopTimer();
+        showToast({
+          style: Toast.Style.Success,
+          title: "Timer Stopped",
+          message: `Timer stopped for "${tasks?.find((task) => task.id === taskId)?.title}"`,
+        });
+        pop();
+        return;
+      }
+      if (!tasks) {
+        throw new Error("No tasks available to select from.");
+      }
+
+      startTimer(taskId);
+
+      showToast({
+        style: Toast.Style.Success,
+        title: "Timer Started",
+        message: `Timer started for "${tasks?.find((task) => task.id === taskId)?.title}"`,
+      });
+
+      pop();
+    } catch (error) {
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Error",
+        message: `Failed to select task: ${error instanceof Error ? error.message : "Unknown error"}`,
+      });
+      console.error("Error selecting task:", error);
+    }
   };
 
   if (isLoading) {
@@ -45,7 +73,7 @@ export default function Command() {
         <List.Item
           key={task.id}
           title={task.title}
-          subtitle={`Project: ${task.project_id}`}
+          subtitle={isRunning && taskId === task.id ? "Timer is running" : "Click to start timer"}
           actions={
             <ActionPanel>
               <Action title="Start Timer for Task" onAction={() => onTaskSelected(task.id)} />

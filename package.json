@@ -9,12 +9,6 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "start-time-tracker",
-      "title": "Start Time Tracker",
-      "description": "Start a time tracker for a task in Forecast",
-      "mode": "view"
-    },
-    {
       "name": "stop-time-tracker",
       "title": "Stop Time Tracker",
       "description": "Stop the currently running time tracker in Forecast",
@@ -25,6 +19,14 @@
       "title": "View Tasks",
       "description": "View tasks in Forecast",
       "mode": "view"
+    },
+    {
+      "name": "menubar-timer",
+      "title": "Forecast Timer",
+      "subtitle": "Forecast Timer",
+      "description": "Set the timer for the Forecast extension",
+      "mode": "menu-bar",
+      "interval": "10s"
     }
   ],
   "preferences": [
