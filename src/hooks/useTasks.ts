@@ -1,96 +1,97 @@
 import { PaginatedResponse, TaskV3 } from "@/types/forecast";
-import { Cache, getPreferenceValues } from "@raycast/api";
-import { useEffect, useMemo, useState } from "react";
+import { getPreferenceValues } from "@raycast/api";
+import { useFetch } from "@raycast/utils";
+import { useMemo } from "react";
 import { useUser } from "./useUser";
 import { ROUTES } from "@/utils/routes";
 
-const CACHE_KEY = "tasks";
-const cache = new Cache();
-
+/**
+ * Custom hook for fetching and managing user tasks from Forecast API
+ * Provides filtered, sorted, and grouped task data with automatic caching
+ */
 export function useTasks() {
   const { forecastApiKey } = getPreferenceValues<Preferences>();
   const { user, isLoading: isLoadingUser } = useUser();
-  const [tasks, setTasks] = useState<TaskV3[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const fetchTasks = async () => {
-    setIsLoading(true);
+  // Only execute fetch when we have all required dependencies
+  const shouldExecute = Boolean(forecastApiKey && user && !isLoadingUser);
 
-    if (!forecastApiKey || !user) {
-      throw new Error("API key and User ID are required");
-    }
-
-    try {
-      if (cache.has(CACHE_KEY)) {
-        const cachedTasks = cache.get(CACHE_KEY) ?? "[";
-        const parsedTasks = JSON.parse(cachedTasks) as TaskV3[];
-
-        setTasks(parsedTasks);
-        return setIsLoading(false);
-      }
-
-      const response = await fetch(ROUTES.tasks.getRecent(), {
-        headers: {
-          "X-FORECAST-API-KEY": forecastApiKey,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error fetching tasks: ${response.status} - ${response.statusText}`);
-      }
-
-      const allTasks = (await response.json()) as PaginatedResponse<TaskV3>;
-
-      const userTasks = allTasks.pageContents
-        .filter((task) => task.assigned_persons.includes(user.id))
-        .toSorted((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-
-      setTasks(userTasks);
-      cache.set(CACHE_KEY, JSON.stringify(userTasks));
-    } catch (error) {
+  const {
+    data: tasksResponse,
+    isLoading,
+    error,
+    revalidate,
+  } = useFetch<PaginatedResponse<TaskV3>>(ROUTES.tasks.getRecent(), {
+    headers: {
+      "X-FORECAST-API-KEY": forecastApiKey,
+    },
+    execute: shouldExecute,
+    onError: (error) => {
       console.error("Failed to fetch tasks:", error);
-    } finally {
-      setIsLoading(false);
+    },
+  });
+
+  // Filter and sort user's tasks
+  const userTasks = useMemo(() => {
+    if (!tasksResponse?.pageContents || !user?.id) {
+      return [];
     }
-  };
+
+    return tasksResponse.pageContents
+      .filter((task) => task.assigned_persons?.includes(user.id))
+      .sort((a, b) => {
+        const dateA = new Date(a.updated_at).getTime();
+        const dateB = new Date(b.updated_at).getTime();
+        return dateB - dateA; // Most recent first
+      });
+  }, [tasksResponse?.pageContents, user?.id]);
+
+  // Filter tasks updated within the last 48 hours
   const recentTasks = useMemo(() => {
-    if (!tasks) return [];
-    return tasks
-      .filter((task) => {
-        const taskDate = new Date(task.updated_at);
-        const currentDate = new Date();
-        const timeDifference = currentDate.getTime() - taskDate.getTime();
-        const hoursDifference = timeDifference / (1000 * 60 * 60);
-        return hoursDifference <= 48; // Filter tasks updated in the last 48 hours
-      })
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-  }, [tasks]);
+    if (userTasks.length === 0) return [];
 
+    const fortyEightHoursAgo = Date.now() - 48 * 60 * 60 * 1000;
+
+    return userTasks.filter((task) => {
+      const taskUpdateTime = new Date(task.updated_at).getTime();
+      return taskUpdateTime > fortyEightHoursAgo;
+    });
+  }, [userTasks]);
+
+  // Group tasks by project ID
   const tasksGroupedByProject = useMemo(() => {
-    if (!tasks) return {};
-    return tasks.reduce(
-      (acc, task) => {
-        const projectId = task.project_id;
-        if (!acc[projectId]) {
-          acc[projectId] = [];
-        }
-        acc[projectId].push(task);
-        return acc;
-      },
-      {} as Record<string, TaskV3[]>,
-    );
-  }, [tasks]);
+    if (userTasks.length === 0) return {};
 
-  useEffect(() => {
-    if (forecastApiKey && user && !isLoadingUser) {
-      fetchTasks();
-    }
-  }, [forecastApiKey, user, isLoadingUser]);
+    return userTasks.reduce<Record<string, TaskV3[]>>((acc, task) => {
+      const projectId = task.project_id;
+
+      if (!projectId) return acc; // Skip tasks without project_id
+
+      if (!acc[projectId]) {
+        acc[projectId] = [];
+      }
+
+      acc[projectId].push(task);
+      return acc;
+    }, {});
+  }, [userTasks]);
 
   return {
-    isLoading,
-    tasks,
-    tasksGroupedByProject,
+    // Data
+    tasks: userTasks,
     recentTasks,
+    tasksGroupedByProject,
+
+    // State
+    isLoading: isLoading || isLoadingUser,
+    error,
+
+    // Actions
+    revalidate,
+
+    // Computed values
+    totalTaskCount: userTasks.length,
+    recentTaskCount: recentTasks.length,
+    projectCount: Object.keys(tasksGroupedByProject).length,
   };
 }
