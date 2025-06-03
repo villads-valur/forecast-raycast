@@ -97,7 +97,7 @@ export default function ViewTasksCommand() {
       }
 
       // Start timer for the selected task
-      await startTimer(task.id);
+      await startTimer(task);
     } catch (error) {
       await showToast({
         style: Toast.Style.Failure,

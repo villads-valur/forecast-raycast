@@ -70,7 +70,7 @@ export default async function StopTimeTrackerCommand() {
     }
 
     const response = await fetch(ROUTES.timer.stop(userId), {
-      method: "POST",
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
         "X-FORECAST-API-KEY": forecastApiKey,
@@ -78,6 +78,10 @@ export default async function StopTimeTrackerCommand() {
     });
 
     if (!response.ok) {
+      if (response.status === 400) {
+        await showHUD("Timer already stopped or not running");
+        return;
+      }
       const errorText = await response.text();
       throw new Error(`Failed to stop timer: ${response.status} ${errorText}`);
     }
