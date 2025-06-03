@@ -142,11 +142,7 @@ export default function MenubarTimer() {
         {activeTask && (
           <MenuBarExtra.Item
             title="Open Task in Forecast"
-            onAction={async () => {
-              const url = `https://app.forecast.it/T${activeTask.company_task_id}`;
-              const { exec } = require("child_process");
-              exec(`open "${url}"`);
-            }}
+            onAction={async () => open(`https://app.forecast.it/T${activeTask.company_task_id}`)}
           />
         )}
       </MenuBarExtra.Section>
