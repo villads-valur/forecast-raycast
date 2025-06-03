@@ -1,5 +1,5 @@
 import { useUser } from "@/hooks/useUser";
-import { Action, ActionPanel, Detail, List, showToast, Toast, useNavigation } from "@raycast/api";
+import { Action, ActionPanel, Detail, List, showToast, Toast } from "@raycast/api";
 import { useMemo } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { useTimer } from "@/hooks/useTimer";
@@ -7,9 +7,9 @@ import { launchCommand, LaunchType } from "@raycast/api";
 import { ROUTES } from "./utils/routes";
 
 export default function Command() {
-  const { startTimer, taskId, isRunning, stopTimer } = useTimer();
+  const { startTimer, taskId: currentTaskId, isRunning, stopTimer } = useTimer(); // ✅ Renamed for clarity
   const { isLoading: isLoadingUser } = useUser();
-  const { isLoading: isLoadingTasks, tasks } = useTasks();
+  const { isLoading: isLoadingTasks, tasks, error } = useTasks();
   const isLoading = useMemo(() => isLoadingUser || isLoadingTasks, [isLoadingTasks, isLoadingUser]);
 
   const onTaskSelected = async (taskId: number) => {
@@ -18,7 +18,7 @@ export default function Command() {
         throw new Error("No tasks available to select from.");
       }
 
-      if (isRunning && taskId === taskId) {
+      if (isRunning && taskId === currentTaskId) {
         stopTimer();
         showToast({
           style: Toast.Style.Success,
@@ -55,12 +55,34 @@ export default function Command() {
     }
   };
 
+  if (error) {
+    return (
+      <Detail
+        markdown={`# Error Loading Tasks\n\n${error.message}\n\nPlease check your API key and internet connection.`}
+        actions={
+          <ActionPanel>
+            <Action title="Retry" onAction={() => window.location.reload()} />
+          </ActionPanel>
+        }
+      />
+    );
+  }
+
   if (isLoading) {
     return <Detail isLoading={isLoading} markdown="Fetching user tasks..." />;
   }
 
   if (!tasks || tasks.length === 0) {
-    return <Detail markdown="No tasks found." />;
+    return (
+      <Detail
+        markdown="# No Tasks Found\n\nNo tasks are currently assigned to you or match the recent activity filter."
+        actions={
+          <ActionPanel>
+            <Action title="Refresh" onAction={() => window.location.reload()} />
+          </ActionPanel>
+        }
+      />
+    );
   }
 
   return (
@@ -68,12 +90,15 @@ export default function Command() {
       {tasks.map((task) => (
         <List.Item
           key={task.id}
-          title={task.title}
-          subtitle={isRunning && taskId === task.id ? "Timer is running" : "Click to start timer"}
+          title={`T${task.company_task_id} - ${task.title}`}
+          subtitle={isRunning && currentTaskId === task.id ? "⏱️ Timer is running" : "Click to start timer"}
           actions={
             <ActionPanel>
-              <Action title="Start Timer for Task" onAction={() => onTaskSelected(task.id)} />
-              <Action.OpenInBrowser title="Open in Browser" url={ROUTES.tasks.browserURL(task.company_task_id)} />
+              <Action
+                title={isRunning && currentTaskId === task.id ? "⛔ Stop Timer" : "✅ Start Timer"}
+                onAction={() => onTaskSelected(task.id)}
+              />
+              <Action.OpenInBrowser title="Open in Forecast" url={ROUTES.tasks.browserURL(task.company_task_id)} />
             </ActionPanel>
           }
         />
