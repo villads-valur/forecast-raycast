@@ -1,5 +1,15 @@
 import { useUser } from "@/hooks/useUser";
-import { Action, ActionPanel, Detail, List, showToast, Toast, Icon } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Detail,
+  List,
+  showToast,
+  Toast,
+  Icon,
+  closeMainWindow,
+  PopToRootType,
+} from "@raycast/api";
 import { useMemo, useState } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { useTimer } from "@/hooks/useTimer";
@@ -41,7 +51,6 @@ export default function ViewTasksCommand() {
   const { startTimer, taskId: currentTaskId, isRunning, stopTimer } = useTimer();
   const { isLoading: isLoadingUser } = useUser();
   const { tasks, searchTasks, priorityTasks, isLoading: isLoadingTasks, error, lookbackHours, revalidate } = useTasks();
-
   const [searchText, setSearchText] = useState("");
   const [showingCategory, setShowingCategory] = useState<"all" | "priority" | "blocked" | "bugs">("all");
 
@@ -90,11 +99,7 @@ export default function ViewTasksCommand() {
       // Start timer for the selected task
       await startTimer(taskId);
 
-      showToast({
-        style: Toast.Style.Success,
-        title: "Timer Started",
-        message: `Timer started for "${selectedTask.title}"`,
-      });
+      closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Default });
     } catch (error) {
       showToast({
         style: Toast.Style.Failure,

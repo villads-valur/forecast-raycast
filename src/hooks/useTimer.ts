@@ -1,5 +1,5 @@
 import { TaskV3 } from "@/types/forecast";
-import { showToast, Toast, LocalStorage } from "@raycast/api";
+import { showToast, Toast, LocalStorage, updateCommandMetadata } from "@raycast/api";
 import { useLocalStorage } from "@raycast/utils";
 import { useCallback, useEffect, useState } from "react";
 
@@ -46,14 +46,11 @@ export function useTimer() {
   const stopTimer = useCallback(async () => {
     if (!isRunning || !startTime) return;
 
-    console.log("Stopping timer - was running:", isRunning, "start time:", startTime);
-
-    // Update reactive state
     await setIsRunning(false);
     await setStartTime(null);
     await setTaskId(null);
 
-    // Also clear from LocalStorage
+    // Clear LocalStorage
     await LocalStorage.removeItem("timer-is-running");
     await LocalStorage.removeItem("timer-start-time");
     await LocalStorage.removeItem("timer-task-id");
@@ -70,7 +67,7 @@ export function useTimer() {
     await setStartTime(null);
     await setTaskId(null);
 
-    // Also clear from LocalStorage
+    // Clear LocalStorage
     await LocalStorage.removeItem("timer-is-running");
     await LocalStorage.removeItem("timer-start-time");
     await LocalStorage.removeItem("timer-task-id");

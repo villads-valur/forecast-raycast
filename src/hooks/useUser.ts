@@ -34,7 +34,6 @@ export function useUser() {
     }
   }, []);
 
-  // Only execute fetch when we have all required preferences
   const shouldExecute = Boolean(forecastApiKey && forecastUserEmail);
 
   const {
@@ -100,39 +99,27 @@ export function useUser() {
     }
   }, [forecastUserEmail, cachedUser]);
 
-  // Derived values for convenience
   const hasValidConfiguration = Boolean(forecastApiKey && forecastUserEmail);
   const isUserFound = Boolean(user);
   const isUsingCachedData = Boolean(cachedUser && !allUsers);
 
   return {
-    // Core data
     user,
-
-    // Convenience accessors
     userId: user?.id,
     userName: user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}`.trim() : user?.email,
     userEmail: user?.email,
-
-    // Configuration
     apiKey: forecastApiKey,
     configuredEmail: forecastUserEmail,
-
-    // State
     isLoading,
     error,
     hasValidConfiguration,
     isUserFound,
     isUsingCachedData,
-
-    // Actions
     revalidate,
     clearCache: () => {
       cache.remove(USER_CACHE_KEY);
       setCachedUser(undefined);
     },
-
-    // Computed state
     isReady: !isLoading && !error && isUserFound,
   };
 }
