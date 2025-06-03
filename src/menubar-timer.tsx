@@ -26,6 +26,10 @@ export default function MenubarTimer() {
     return activeTask?.title;
   }, [tasks, isRunning, taskId]);
 
+  if (!isRunning && !taskId) {
+    return <MenuBarExtra icon="timer-stopped.png" title="No active task" tooltip="Click to start a timer" />;
+  }
+
   return (
     <MenuBarExtra
       icon={isRunning ? "timer-running.png" : "timer-stopped.png"}

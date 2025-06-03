@@ -3,16 +3,20 @@ import { Action, ActionPanel, Detail, List, showToast, Toast, useNavigation } fr
 import { useMemo } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { useTimer } from "@/hooks/useTimer";
+import { launchCommand, LaunchType } from "@raycast/api";
 
 export default function Command() {
-  const { pop } = useNavigation();
   const { startTimer, taskId, isRunning, stopTimer } = useTimer();
   const { isLoading: isLoadingUser } = useUser();
-  const { isLoading: isLoadingTasks, tasks } = useTasks();
+  const { isLoading: isLoadingTasks, tasks, revalidate: refetchTasks } = useTasks();
   const isLoading = useMemo(() => isLoadingUser || isLoadingTasks, [isLoadingTasks, isLoadingUser]);
 
-  const onTaskSelected = (taskId: number) => {
+  const onTaskSelected = async (taskId: number) => {
     try {
+      if (!tasks) {
+        throw new Error("No tasks available to select from.");
+      }
+
       if (isRunning && taskId === taskId) {
         stopTimer();
         showToast({
@@ -20,22 +24,26 @@ export default function Command() {
           title: "Timer Stopped",
           message: `Timer stopped for "${tasks?.find((task) => task.id === taskId)?.title}"`,
         });
-        pop();
         return;
-      }
-      if (!tasks) {
-        throw new Error("No tasks available to select from.");
       }
 
       startTimer(taskId);
+
+      await launchCommand({
+        name: "menubar-timer",
+        type: LaunchType.UserInitiated,
+        context: {
+          taskId: taskId.toString(),
+          isRunning: "true",
+          elapsedTime: "0",
+        },
+      });
 
       showToast({
         style: Toast.Style.Success,
         title: "Timer Started",
         message: `Timer started for "${tasks?.find((task) => task.id === taskId)?.title}"`,
       });
-
-      pop();
     } catch (error) {
       showToast({
         style: Toast.Style.Failure,
@@ -60,12 +68,7 @@ export default function Command() {
       searchBarPlaceholder="Search tasks..."
       actions={
         <ActionPanel>
-          <ActionPanel.Item
-            title="Refresh Tasks"
-            onAction={() => {
-              // Logic to refresh tasks can be added here
-            }}
-          />
+          <ActionPanel.Item title="Refresh Tasks" onAction={refetchTasks} />
         </ActionPanel>
       }
     >
