@@ -12,5 +12,6 @@ export const ROUTES = {
     getAll: `${API_BASE_URL}/v3/tasks`,
     getRecent: (updatedAt = getFormattedDateMinusHours(120)) =>
       `${API_BASE_URL}/v4/tasks/updated_after/${updatedAt}?pageNumber=1&pageSize=100`,
+    browserURL: (taskId: number) => `https://app.forecast.it/T${taskId}`,
   },
 } as const;

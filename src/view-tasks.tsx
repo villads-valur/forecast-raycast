@@ -4,11 +4,12 @@ import { useMemo } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { useTimer } from "@/hooks/useTimer";
 import { launchCommand, LaunchType } from "@raycast/api";
+import { ROUTES } from "./utils/routes";
 
 export default function Command() {
   const { startTimer, taskId, isRunning, stopTimer } = useTimer();
   const { isLoading: isLoadingUser } = useUser();
-  const { isLoading: isLoadingTasks, tasks, revalidate: refetchTasks } = useTasks();
+  const { isLoading: isLoadingTasks, tasks } = useTasks();
   const isLoading = useMemo(() => isLoadingUser || isLoadingTasks, [isLoadingTasks, isLoadingUser]);
 
   const onTaskSelected = async (taskId: number) => {
@@ -63,15 +64,7 @@ export default function Command() {
   }
 
   return (
-    <List
-      isLoading={isLoading}
-      searchBarPlaceholder="Search tasks..."
-      actions={
-        <ActionPanel>
-          <ActionPanel.Item title="Refresh Tasks" onAction={refetchTasks} />
-        </ActionPanel>
-      }
-    >
+    <List isLoading={isLoading} searchBarPlaceholder="Search tasks...">
       {tasks.map((task) => (
         <List.Item
           key={task.id}
@@ -80,6 +73,7 @@ export default function Command() {
           actions={
             <ActionPanel>
               <Action title="Start Timer for Task" onAction={() => onTaskSelected(task.id)} />
+              <Action.OpenInBrowser title="Open in Browser" url={ROUTES.tasks.browserURL(task.company_task_id)} />
             </ActionPanel>
           }
         />
