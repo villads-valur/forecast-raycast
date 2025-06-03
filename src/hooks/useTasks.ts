@@ -24,6 +24,55 @@ interface UseTasksOptions {
 }
 
 /**
+ * Calculate task relevance score based on multiple factors
+ * Higher score = more relevant
+ */
+function calculateTaskRelevance(task: TaskV3, userId: number): number {
+  let score = 0;
+  const now = Date.now();
+  const taskUpdated = new Date(task.updated_at).getTime();
+  const taskCreated = new Date(task.created_at).getTime();
+  const hoursAgo = (now - taskUpdated) / (1000 * 60 * 60);
+
+  // Base score for being assigned
+  if (task.assigned_persons?.includes(userId)) {
+    score += 100;
+  }
+
+  // Score based on how recently the task was updated
+  if (hoursAgo < 24) {
+    score += 50;
+  } else if (hoursAgo < 48) {
+    score += 30;
+  } else if (hoursAgo < 72) {
+    score += 20;
+  }
+
+  // High priority tasks
+  if (task.high_priority) {
+    score += 40;
+  }
+
+  // Blocked tasks get lower priority
+  if (task.blocked) {
+    score -= 30;
+  }
+
+  // Bug tasks might be more urgent
+  if (task.bug) {
+    score += 25;
+  }
+
+  // Tasks created recently (might be newly assigned)
+  const hoursCreatedAgo = (now - taskCreated) / (1000 * 60 * 60);
+  if (hoursCreatedAgo < 24) {
+    score += 15;
+  }
+
+  return Math.max(0, score); // Ensure non-negative score
+}
+
+/**
  * Get the number of hours to look back, considering weekends
  * - On Monday/Tuesday: Look back 5 days (to include Friday)
  * - Other days: Look back 3 days
@@ -95,19 +144,31 @@ export function useTasks(options: UseTasksOptions = {}) {
     },
     onData: (response) => {
       if (response?.pageContents && user?.id) {
-        const userTasks = response.pageContents
+        const tasks = response.pageContents
           .filter((task) => {
-            const isAssigned = task.assigned_persons?.includes(user.id);
-            return isAssigned;
+            const relevance = calculateTaskRelevance(task, user.id);
+
+            return relevance > 10;
           })
+          .map((task) => ({
+            ...task,
+            relevanceScore: calculateTaskRelevance(task, user.id),
+          }))
           .sort((a, b) => {
+            // Primary sort: relevance score (descending)
+            if (b.relevanceScore !== a.relevanceScore) {
+              return b.relevanceScore - a.relevanceScore;
+            }
+
             const dateA = new Date(a.updated_at).getTime();
             const dateB = new Date(b.updated_at).getTime();
             return dateB - dateA;
-          });
+          })
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          .map(({ relevanceScore, ...task }) => task);
 
         const cacheData: CachedTasksData = {
-          tasks: userTasks,
+          tasks,
           timestamp: Date.now(),
           userId: user.id.toString(),
         };

@@ -15,10 +15,6 @@ function getTaskSubtitle(task: TaskV3): string {
     parts.push(`Project ${task.project_id}`);
   }
 
-  if (task.high_priority) {
-    parts.push("🔴 High Priority");
-  }
-
   if (task.blocked) {
     parts.push("🚫 Blocked");
   }
@@ -47,7 +43,7 @@ const formatUpdatedAtAccessory = (updatedAt: Date): string => {
 export default function ViewTasksCommand() {
   const { startTimer, taskId: currentTaskId, isRunning, stopTimer } = useTimer();
   const { isLoading: isLoadingUser } = useUser();
-  const { tasks, searchTasks, priorityTasks, isLoading: isLoadingTasks, error, lookbackHours } = useTasks();
+  const { tasks, searchTasks, priorityTasks, isLoading: isLoadingTasks, error, lookbackHours, revalidate } = useTasks();
 
   const [searchText, setSearchText] = useState("");
   const [showingCategory, setShowingCategory] = useState<"all" | "priority" | "blocked" | "bugs">("all");
@@ -59,9 +55,6 @@ export default function ViewTasksCommand() {
     let baseList: TaskV3[];
 
     switch (showingCategory) {
-      case "priority":
-        baseList = priorityTasks.highPriority;
-        break;
       case "blocked":
         baseList = priorityTasks.blocked;
         break;
@@ -125,7 +118,7 @@ export default function ViewTasksCommand() {
         markdown={`# Error Loading Tasks\n\n${error.message}\n\nPlease check your API key and internet connection.`}
         actions={
           <ActionPanel>
-            <Action title="Retry" onAction={() => window.location.reload()} />
+            <Action title="Retry" onAction={revalidate} />
           </ActionPanel>
         }
       />
@@ -142,7 +135,7 @@ export default function ViewTasksCommand() {
         markdown={`# No Relevant Tasks Found\n\nNo tasks assigned to you have been updated in the last ${Math.round(lookbackHours / 24)} days.\n\nThis search looks further back on Mondays and Tuesdays to account for weekend gaps.`}
         actions={
           <ActionPanel>
-            <Action title="Refresh" onAction={() => window.location.reload()} />
+            <Action title="Refresh" onAction={revalidate} />
           </ActionPanel>
         }
       />
@@ -162,7 +155,6 @@ export default function ViewTasksCommand() {
           onChange={(newValue) => setShowingCategory(newValue as typeof showingCategory)}
         >
           <List.Dropdown.Item title="All Tasks" value="all" />
-          <List.Dropdown.Item title={`High Priority (${priorityTasks.highPriority.length})`} value="priority" />
           <List.Dropdown.Item title={`Blocked (${priorityTasks.blocked.length})`} value="blocked" />
           <List.Dropdown.Item title={`Bugs (${priorityTasks.bugs.length})`} value="bugs" />
         </List.Dropdown>
@@ -188,7 +180,6 @@ export default function ViewTasksCommand() {
                 task.description || "",
                 task.company_task_id?.toString() || "",
                 task.project_id?.toString() || "",
-                task.high_priority ? "priority" : "",
                 task.blocked ? "blocked" : "",
                 task.bug ? "bug" : "",
               ].filter(Boolean)}
