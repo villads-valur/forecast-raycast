@@ -26,7 +26,7 @@
       "subtitle": "Forecast Timer",
       "description": "Set the timer for the Forecast extension",
       "mode": "menu-bar",
-      "interval": "10s"
+      "interval": "3s"
     }
   ],
   "preferences": [

@@ -3,7 +3,6 @@ import { Action, ActionPanel, Detail, List, showToast, Toast, Icon } from "@rayc
 import { useMemo, useState } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { useTimer } from "@/hooks/useTimer";
-import { launchCommand, LaunchType } from "@raycast/api";
 import { ROUTES } from "@/utils/routes";
 import { TaskV3 } from "@/types/forecast";
 
@@ -22,8 +21,6 @@ function getTaskSubtitle(task: TaskV3): string {
   if (task.bug) {
     parts.push("🐛 Bug");
   }
-
-  // Show how long ago it was updated
 
   return parts.join(" • ");
 }
@@ -74,33 +71,29 @@ export default function ViewTasksCommand() {
         throw new Error("No tasks available to select from.");
       }
 
+      const selectedTask = tasks.find((task) => task.id === taskId);
+      if (!selectedTask) {
+        throw new Error("Selected task not found.");
+      }
+
       // Check if this task is already running
       if (isRunning && taskId === currentTaskId) {
-        stopTimer();
+        await stopTimer();
         showToast({
           style: Toast.Style.Success,
           title: "Timer Stopped",
-          message: `Timer stopped for "${tasks?.find((task) => task.id === taskId)?.title}"`,
+          message: `Timer stopped for "${selectedTask.title}"`,
         });
         return;
       }
 
-      startTimer(taskId);
-
-      await launchCommand({
-        name: "menubar-timer",
-        type: LaunchType.UserInitiated,
-        context: {
-          taskId: taskId.toString(),
-          isRunning: "true",
-          elapsedTime: "0",
-        },
-      });
+      // Start timer for the selected task
+      await startTimer(taskId);
 
       showToast({
         style: Toast.Style.Success,
         title: "Timer Started",
-        message: `Timer started for "${tasks?.find((task) => task.id === taskId)?.title}"`,
+        message: `Timer started for "${selectedTask.title}"`,
       });
     } catch (error) {
       showToast({
