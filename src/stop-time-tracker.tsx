@@ -1,10 +1,48 @@
-import { LocalStorage, showHUD } from "@raycast/api";
+import { getPreferenceValues, LocalStorage, showHUD } from "@raycast/api";
+import { ROUTES } from "./utils/routes";
+import { PersonV2, TimerResponse } from "./types/forecast";
+
+async function getCurrentUserId(): Promise<number | null> {
+  try {
+    const { forecastApiKey, forecastUserEmail } = getPreferenceValues<Preferences>();
+
+    if (!forecastApiKey || !forecastUserEmail) {
+      return null;
+    }
+
+    // Fetch users to find current user ID
+    const response = await fetch(ROUTES.persons.getAll, {
+      headers: {
+        "X-FORECAST-API-KEY": forecastApiKey,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch users: ${response.status}`);
+    }
+
+    const users = (await response.json()) as PersonV2[];
+    const currentUser = users.find((person) => person.email?.toLowerCase() === forecastUserEmail.toLowerCase());
+
+    return currentUser?.id || null;
+  } catch (error) {
+    console.error("Error getting user ID:", error);
+    return null;
+  }
+}
 
 export default async function StopTimeTrackerCommand() {
   try {
     // Check if timer is running
     const isRunning = await LocalStorage.getItem<boolean>("timer-is-running");
     const taskId = await LocalStorage.getItem<number>("timer-task-id");
+    const userId = await getCurrentUserId();
+    const { forecastApiKey } = getPreferenceValues<Preferences>();
+
+    if (!userId || !forecastApiKey) {
+      await showHUD("Error: User not found or API key not configured");
+      return;
+    }
 
     if (!isRunning || !taskId) {
       await showHUD("No timer is running");
@@ -29,6 +67,19 @@ export default async function StopTimeTrackerCommand() {
       } else {
         elapsedMessage = ` (${seconds}s)`;
       }
+    }
+
+    const response = await fetch(ROUTES.timer.stop(userId), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-FORECAST-API-KEY": forecastApiKey,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to stop timer: ${response.status} ${errorText}`);
     }
 
     // Stop the timer

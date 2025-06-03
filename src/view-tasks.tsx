@@ -49,7 +49,7 @@ const formatUpdatedAtAccessory = (updatedAt: Date): string => {
 
 export default function ViewTasksCommand() {
   const { startTimer, taskId: currentTaskId, isRunning, stopTimer } = useTimer();
-  const { isLoading: isLoadingUser } = useUser();
+  const { isLoading: isLoadingUser, isReady: isUserReady } = useUser();
   const { tasks, searchTasks, priorityTasks, isLoading: isLoadingTasks, error, lookbackHours, revalidate } = useTasks();
   const [searchText, setSearchText] = useState("");
   const [showingCategory, setShowingCategory] = useState<"all" | "priority" | "blocked" | "bugs">("all");
@@ -74,34 +74,32 @@ export default function ViewTasksCommand() {
     return searchTasks(searchText, baseList);
   }, [tasks, priorityTasks, searchText, searchTasks, showingCategory]);
 
-  const onTaskSelected = async (taskId: number) => {
+  const onTaskSelected = async (task: TaskV3) => {
     try {
       if (!tasks) {
         throw new Error("No tasks available to select from.");
       }
 
-      const selectedTask = tasks.find((task) => task.id === taskId);
-      if (!selectedTask) {
-        throw new Error("Selected task not found.");
-      }
-
-      // Check if this task is already running
-      if (isRunning && taskId === currentTaskId) {
-        await stopTimer();
-        showToast({
-          style: Toast.Style.Success,
-          title: "Timer Stopped",
-          message: `Timer stopped for "${selectedTask.title}"`,
+      if (!isUserReady) {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: "User Not Ready",
+          message: "Please wait for authentication to complete",
         });
         return;
       }
 
-      // Start timer for the selected task
-      await startTimer(taskId);
+      // Check if this task is already running
+      if (isRunning && task.id === currentTaskId) {
+        await stopTimer();
+        closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Default });
+        return;
+      }
 
-      closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Default });
+      // Start timer for the selected task
+      await startTimer(task.id);
     } catch (error) {
-      showToast({
+      await showToast({
         style: Toast.Style.Failure,
         title: "Error",
         message: `Failed to select task: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -110,30 +108,33 @@ export default function ViewTasksCommand() {
     }
   };
 
+  // Show loading state
+  if (isLoading) {
+    return <Detail isLoading={isLoading} markdown="Fetching your most relevant tasks..." />;
+  }
+
+  // Show error state
   if (error) {
     return (
       <Detail
         markdown={`# Error Loading Tasks\n\n${error.message}\n\nPlease check your API key and internet connection.`}
         actions={
           <ActionPanel>
-            <Action title="Retry" onAction={revalidate} />
+            <Action title="Retry" onAction={revalidate} icon={Icon.ArrowClockwise} />
           </ActionPanel>
         }
       />
     );
   }
 
-  if (isLoading) {
-    return <Detail isLoading={isLoading} markdown="Fetching your most relevant tasks..." />;
-  }
-
+  // Show no tasks state
   if (!tasks || tasks.length === 0) {
     return (
       <Detail
         markdown={`# No Relevant Tasks Found\n\nNo tasks assigned to you have been updated in the last ${Math.round(lookbackHours / 24)} days.\n\nThis search looks further back on Mondays and Tuesdays to account for weekend gaps.`}
         actions={
           <ActionPanel>
-            <Action title="Refresh" onAction={revalidate} />
+            <Action title="Refresh" onAction={revalidate} icon={Icon.ArrowClockwise} />
           </ActionPanel>
         }
       />
@@ -159,10 +160,15 @@ export default function ViewTasksCommand() {
       }
     >
       {filteredTasks.length === 0 && searchText ? (
-        <List.EmptyView title="No matching tasks found" description={`No tasks match "${searchText}"`} />
+        <List.EmptyView
+          title="No matching tasks found"
+          description={`No tasks match "${searchText}"`}
+          icon={Icon.MagnifyingGlass}
+        />
       ) : (
         filteredTasks.map((task) => {
           const isTimerRunning = isRunning && currentTaskId === task.id;
+          const isCurrentTaskLoading = currentTaskId === task.id;
 
           return (
             <List.Item
@@ -171,6 +177,7 @@ export default function ViewTasksCommand() {
               subtitle={getTaskSubtitle(task)}
               accessories={[
                 isTimerRunning ? { icon: Icon.Clock, tooltip: "Timer running" } : {},
+                isCurrentTaskLoading ? { icon: Icon.Hourglass, tooltip: "Processing..." } : {},
                 { text: formatUpdatedAtAccessory(task.updated_at) },
               ].filter((acc) => Object.keys(acc).length > 0)}
               keywords={[
@@ -186,23 +193,45 @@ export default function ViewTasksCommand() {
                   <Action
                     title={isTimerRunning ? "Stop Timer" : "Start Timer"}
                     icon={isTimerRunning ? Icon.Stop : Icon.Play}
-                    onAction={() => onTaskSelected(task.id)}
+                    onAction={() => onTaskSelected(task)}
                   />
-                  <Action.OpenInBrowser
-                    title="Open in Forecast"
-                    url={ROUTES.tasks.browserURL(task.company_task_id)}
-                    shortcut={{ modifiers: ["cmd"], key: "o" }}
-                  />
-                  <Action.CopyToClipboard
-                    title="Copy Task URL"
-                    content={ROUTES.tasks.browserURL(task.company_task_id)}
-                    shortcut={{ modifiers: ["cmd"], key: "c" }}
-                  />
-                  <Action.CopyToClipboard
-                    title="Copy Task Title"
-                    content={task.title}
-                    shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
-                  />
+                  <ActionPanel.Section title="Task Actions">
+                    <Action.OpenInBrowser
+                      title="Open in Forecast"
+                      url={ROUTES.tasks.browserURL(task.company_task_id)}
+                      shortcut={{ modifiers: ["cmd"], key: "o" }}
+                      icon={Icon.Globe}
+                    />
+                    <Action.CopyToClipboard
+                      title="Copy Task URL"
+                      content={ROUTES.tasks.browserURL(task.company_task_id)}
+                      shortcut={{ modifiers: ["cmd"], key: "c" }}
+                      icon={Icon.Link}
+                    />
+                    <Action.CopyToClipboard
+                      title="Copy Task Title"
+                      content={task.title}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                      icon={Icon.Text}
+                    />
+                    {task.description && (
+                      <Action.CopyToClipboard
+                        title="Copy Task Description"
+                        content={task.description}
+                        shortcut={{ modifiers: ["cmd", "opt"], key: "c" }}
+                        icon={Icon.Text}
+                      />
+                    )}
+                  </ActionPanel.Section>
+
+                  <ActionPanel.Section title="Navigation">
+                    <Action
+                      title="Refresh Tasks"
+                      onAction={revalidate}
+                      shortcut={{ modifiers: ["cmd"], key: "r" }}
+                      icon={Icon.ArrowClockwise}
+                    />
+                  </ActionPanel.Section>
                 </ActionPanel>
               }
             />

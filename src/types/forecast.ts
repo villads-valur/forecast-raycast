@@ -128,3 +128,13 @@ export type ProjectWorkflowColumn = {
   created_at: Date;
   updated_at: Date;
 };
+
+export interface TimerStartRequest {
+  task_id: number;
+}
+
+export interface TimerResponse {
+  task?: number;
+  start_time?: string;
+  project?: number;
+}

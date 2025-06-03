@@ -15,4 +15,9 @@ export const ROUTES = {
     ) => `${API_BASE_URL}/v4/tasks/updated_after/${getFormattedDateMinusHours(hoursBack)}?pageNumber=1&pageSize=100`,
     browserURL: (taskId: number) => `https://app.forecast.it/T${taskId}`,
   },
+  timer: {
+    start: (personId: number) => `${API_BASE_URL}/v1/persons/${personId}/timer/start`,
+    stop: (personId: number) => `${API_BASE_URL}/v1/persons/${personId}/timer/stop`,
+    status: (personId: number) => `${API_BASE_URL}/v1/persons/${personId}/timer`,
+  },
 } as const;

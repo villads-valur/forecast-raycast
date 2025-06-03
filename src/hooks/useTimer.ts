@@ -1,12 +1,16 @@
-import { TaskV3 } from "@/types/forecast";
-import { showToast, Toast, LocalStorage, updateCommandMetadata } from "@raycast/api";
+import { TaskV3, TimerResponse, TimerStartRequest } from "@/types/forecast";
+import { ROUTES } from "@/utils/routes";
+import { showToast, Toast, LocalStorage, getPreferenceValues } from "@raycast/api";
 import { useLocalStorage } from "@raycast/utils";
 import { useCallback, useEffect, useState } from "react";
+import { useUser } from "./useUser";
 
 /**
  * Custom hook to manage a simple timer. The timer indicates the time tracked on a task.
  **/
 export function useTimer() {
+  const { user } = useUser();
+  const { forecastApiKey } = getPreferenceValues<Preferences>();
   const { value: isRunning, setValue: setIsRunning } = useLocalStorage("timer-is-running", false);
   const { value: startTime, setValue: setStartTime } = useLocalStorage<string | null>("timer-start-time", null);
   const { value: taskId, setValue: setTaskId } = useLocalStorage<number | null>("timer-task-id", null);
@@ -14,6 +18,14 @@ export function useTimer() {
 
   const startTimer = useCallback(
     async (newTaskId: TaskV3["id"]) => {
+      if (!user?.id || !forecastApiKey) {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: "Error",
+          message: "User not found or API key not configured",
+        });
+        return;
+      }
       console.log("Starting timer for task ID:", newTaskId);
 
       // If timer is already running for a different task, stop it first
@@ -23,6 +35,28 @@ export function useTimer() {
 
       // Don't start if already running for the same task
       if (isRunning && taskId === newTaskId) {
+        return;
+      }
+
+      // Make API call to start timer
+      const response = await fetch(ROUTES.timer.start(user?.id), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-FORECAST-API-KEY": forecastApiKey,
+        },
+        body: JSON.stringify({
+          task_id: newTaskId,
+        } as TimerStartRequest),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Failed to Start Timer",
+          message: errorData.message || "An error occurred while starting the timer.",
+        });
         return;
       }
 
@@ -44,7 +78,34 @@ export function useTimer() {
   );
 
   const stopTimer = useCallback(async () => {
+    if (!user?.id || !forecastApiKey) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Error",
+        message: "User not found or API key not configured",
+      });
+      return;
+    }
     if (!isRunning || !startTime) return;
+
+    const loadingToast = await showToast({
+      style: Toast.Style.Animated,
+      title: "Stopping timer...",
+    });
+
+    // Make API call to stop timer
+    const response = await fetch(ROUTES.timer.stop(user.id), {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-FORECAST-API-KEY": forecastApiKey,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to stop timer: ${response.status} ${errorText}`);
+    }
 
     await setIsRunning(false);
     await setStartTime(null);
@@ -55,6 +116,7 @@ export function useTimer() {
     await LocalStorage.removeItem("timer-start-time");
     await LocalStorage.removeItem("timer-task-id");
 
+    loadingToast.hide();
     showToast({
       style: Toast.Style.Success,
       title: "Timer Stopped",
@@ -72,6 +134,51 @@ export function useTimer() {
     await LocalStorage.removeItem("timer-start-time");
     await LocalStorage.removeItem("timer-task-id");
   }, [setIsRunning, setStartTime, setTaskId]);
+
+  // Check timer status on mount and when user changes
+  const syncTimerStatus = useCallback(async () => {
+    if (!user?.id || !forecastApiKey) {
+      return;
+    }
+
+    try {
+      const response = await fetch(ROUTES.timer.status(user.id), {
+        headers: {
+          "X-FORECAST-API-KEY": forecastApiKey,
+        },
+      });
+
+      if (response.ok) {
+        const timerData: TimerResponse = await response.json();
+
+        // If API shows timer is running but local state doesn't, sync it
+        if (timerData.task && timerData.start_time && !isRunning) {
+          console.log("Syncing timer state from API:", timerData);
+
+          await setIsRunning(true);
+          await setStartTime(timerData.start_time);
+          await setTaskId(timerData.task);
+
+          await LocalStorage.setItem("timer-is-running", true);
+          await LocalStorage.setItem("timer-start-time", timerData.start_time);
+          await LocalStorage.setItem("timer-task-id", timerData.task);
+        }
+        // If local state shows running but API doesn't, clear local state
+        else if (!timerData.task && isRunning) {
+          console.log("Timer not running on API, clearing local state");
+          await resetTimer();
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to sync timer status:", error);
+    }
+  }, [user?.id, forecastApiKey, isRunning, setIsRunning, setStartTime, setTaskId, resetTimer]);
+
+  useEffect(() => {
+    if (user?.id) {
+      syncTimerStatus();
+    }
+  }, [user?.id, syncTimerStatus]);
 
   // Calculate elapsed time if the timer is running
   useEffect(() => {
@@ -97,6 +204,7 @@ export function useTimer() {
 
   return {
     isRunning: Boolean(isRunning),
+    syncTimerStatus,
     startTimer,
     stopTimer,
     resetTimer,
